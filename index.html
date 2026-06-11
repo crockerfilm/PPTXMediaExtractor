@@ -395,7 +395,8 @@ document.addEventListener('DOMContentLoaded', () => {
       .tableWrap { overflow-x: auto; }
       th, td { white-space: nowrap; }
     }
-  </style>
+  .thumb video { object-fit: cover; width: 100%; height: 100%; }
+</style>
 </head>
 <body>
   <main class="wrap">
@@ -733,7 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (isPreviewableVideo(item.mime)) {
-        return `<video src="${item.url}" muted controls preload="metadata"></video>`;
+        return `<video src="${item.url}" muted autoplay loop playsinline></video>`;
       }
 
       if (item.mime.startsWith('audio/')) {
