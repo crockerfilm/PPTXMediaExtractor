@@ -4,7 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PPTX Media Extractor</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js">
+// Pause videos at first frame after loadedmetadata
+document.addEventListener('DOMContentLoaded', () => {
+  const observer = new MutationObserver(() => {
+    document.querySelectorAll('video').forEach(video => {
+      if (!video.dataset.pausedOnce) {
+        video.addEventListener('loadedmetadata', () => {
+          video.currentTime = 0;
+          video.pause();
+          video.dataset.pausedOnce = "true";
+        });
+      }
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+});
+
+</script>
   <style>
     :root {
       --bg: #0f1115;
@@ -850,6 +867,23 @@
       gridBtn.classList.remove('active');
       render();
     });
-  </script>
+  
+// Pause videos at first frame after loadedmetadata
+document.addEventListener('DOMContentLoaded', () => {
+  const observer = new MutationObserver(() => {
+    document.querySelectorAll('video').forEach(video => {
+      if (!video.dataset.pausedOnce) {
+        video.addEventListener('loadedmetadata', () => {
+          video.currentTime = 0;
+          video.pause();
+          video.dataset.pausedOnce = "true";
+        });
+      }
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+});
+
+</script>
 </body>
 </html>
