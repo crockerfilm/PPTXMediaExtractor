@@ -659,7 +659,7 @@
         });
       }
 
-      hydrateVideoThumbnails();
+      requestAnimationFrame(applyVideoPosters);
     }
 
     function renderGrid(items) {
@@ -718,7 +718,7 @@
       }
 
       if (isPreviewableVideo(item.mime)) {
-        return `<img src="" data-video-thumb="${escapeHtml(item.path)}" alt="${escapeHtml(item.name)}" loading="lazy" />`;
+        return `<video src="${item.url}" muted controls playsinline preload="metadata" data-video-poster="${escapeHtml(item.path)}"></video>`;
       }
 
       if (item.mime.startsWith('audio/')) {
@@ -734,71 +734,74 @@
       }
 
       if (isPreviewableVideo(item.mime)) {
-        return `<img class="miniThumb" src="" data-video-thumb="${escapeHtml(item.path)}" alt="" loading="lazy" />`;
+        return `<video class="miniThumb" src="${item.url}" muted playsinline preload="metadata" data-video-poster="${escapeHtml(item.path)}"></video>`;
       }
 
       return `<div class="miniThumb" style="display:grid;place-items:center;color:var(--muted);font-size:.7rem">${escapeHtml((item.ext || 'file').slice(0, 4).toUpperCase())}</div>`;
     }
 
-    function hydrateVideoThumbnails() {
-      const thumbEls = results.querySelectorAll('[data-video-thumb]');
+    async function applyVideoPosters() {
+      const videos = results.querySelectorAll('video[data-video-poster]');
 
-      for (const img of thumbEls) {
-        const item = mediaItems.find(x => x.path === img.dataset.videoThumb);
+      for (const visibleVideo of videos) {
+        const item = mediaItems.find(x => x.path === visibleVideo.dataset.videoPoster);
         if (!item) continue;
 
-        if (item.thumbnailUrl) {
-          img.src = item.thumbnailUrl;
+        if (item.posterUrl) {
+          visibleVideo.poster = item.posterUrl;
           continue;
         }
 
-        createVideoThumbnail(item)
-          .then(url => {
-            item.thumbnailUrl = url;
-            img.src = url;
-          })
-          .catch(() => {
-            img.replaceWith(htmlToElement(`<div class="${img.classList.contains('miniThumb') ? 'miniThumb' : 'icon'}" style="display:grid;place-items:center;color:var(--muted);font-size:.75rem">VIDEO</div>`));
-          });
+        try {
+          const posterUrl = await createPosterFromVideo(item);
+          item.posterUrl = posterUrl;
+          visibleVideo.poster = posterUrl;
+        } catch (err) {
+          // Leave the playable video as-is if poster generation fails.
+        }
       }
     }
 
-    function createVideoThumbnail(item) {
+    function createPosterFromVideo(item) {
       return new Promise((resolve, reject) => {
         const video = document.createElement('video');
         video.src = item.url;
         video.muted = true;
         video.playsInline = true;
-        video.preload = 'metadata';
-        video.crossOrigin = 'anonymous';
+        video.preload = 'auto';
 
         const cleanup = () => {
+          video.pause();
           video.removeAttribute('src');
           video.load();
         };
 
-        video.addEventListener('loadedmetadata', () => {
-          const targetTime = Math.min(0.25, Math.max(0, (video.duration || 1) / 20));
-          try {
-            video.currentTime = targetTime;
-          } catch (err) {
-            cleanup();
-            reject(err);
-          }
-        }, { once: true });
-
-        video.addEventListener('seeked', () => {
+        const drawPoster = () => {
           try {
             const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth || 320;
-            canvas.height = video.videoHeight || 180;
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 360;
 
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+            const posterUrl = canvas.toDataURL('image/jpeg', 0.85);
             cleanup();
-            resolve(dataUrl);
+            resolve(posterUrl);
+          } catch (err) {
+            cleanup();
+            reject(err);
+          }
+        };
+
+        video.addEventListener('loadedmetadata', () => {
+          const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
+          const targetTime = Math.min(Math.max(duration * 0.08, 0.15), 1.25, duration - 0.01);
+
+          video.addEventListener('seeked', drawPoster, { once: true });
+
+          try {
+            video.currentTime = Math.max(0, targetTime);
           } catch (err) {
             cleanup();
             reject(err);
@@ -807,15 +810,11 @@
 
         video.addEventListener('error', () => {
           cleanup();
-          reject(new Error('Video thumbnail failed'));
+          reject(new Error('Could not load video for poster'));
         }, { once: true });
-      });
-    }
 
-    function htmlToElement(html) {
-      const template = document.createElement('template');
-      template.innerHTML = html.trim();
-      return template.content.firstChild;
+        video.load();
+      });
     }
 
     async function downloadAll() {
