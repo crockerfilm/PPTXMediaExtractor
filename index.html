@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PPTX Media Extractor</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #171a21;
+      --panel-2: #202531;
+      --text: #f2f4f8;
+      --muted: #9aa4b2;
+      --line: #2b3140;
+      --accent: #8ab4ff;
+      --accent-2: #b7d0ff;
+      --danger: #ff8a8a;
+      --good: #98e2b7;
+      --shadow: 0 18px 60px rgba(0,0,0,.35);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(138,180,255,.18), transparent 38rem),
+        radial-gradient(circle at bottom right, rgba(152,226,183,.10), transparent 36rem),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    a { color: inherit; }
+
+    .wrap {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 34px 0 48px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      margin-bottom: 22px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      letter-spacing: -0.04em;
+      font-size: clamp(2rem, 6vw, 4.2rem);
+      line-height: .92;
+    }
+
+    .sub {
+      color: var(--muted);
+      max-width: 760px;
+      font-size: 1rem;
+      line-height: 1.55;
+      margin: 0;
+    }
+
+    .badge {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      padding: 10px 12px;
+      border-radius: 999px;
+      color: var(--muted);
+      white-space: nowrap;
+      font-size: .88rem;
+    }
+
+    .drop {
+      border: 1.5px dashed #465066;
+      background: rgba(23,26,33,.82);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      min-height: 220px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 32px;
+      cursor: pointer;
+      transition: border-color .18s ease, background .18s ease, transform .18s ease;
+      margin-bottom: 18px;
+    }
+
+    .drop.drag {
+      border-color: var(--accent);
+      background: rgba(38, 48, 68, .92);
+      transform: translateY(-2px);
+    }
+
+    .drop strong {
+      font-size: 1.25rem;
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .drop span {
+      color: var(--muted);
+      line-height: 1.45;
+      display: block;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    input[type=file] { display: none; }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto auto;
+      gap: 10px;
+      align-items: center;
+      background: rgba(23,26,33,.86);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 14px;
+      box-shadow: 0 14px 42px rgba(0,0,0,.18);
+    }
+
+    .toolbar.hidden,
+    .hidden { display: none !important; }
+
+    .search, select, button {
+      height: 42px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 0 12px;
+      font: inherit;
+    }
+
+    .search {
+      width: 100%;
+      min-width: 180px;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 650;
+      transition: transform .15s ease, border-color .15s ease, background .15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: #55617a;
+      background: #262c3a;
+    }
+
+    button.primary {
+      background: linear-gradient(180deg, #9cc2ff, #6fa6ff);
+      color: #07111f;
+      border: none;
+    }
+
+    button.danger {
+      color: #290707;
+      background: linear-gradient(180deg, #ffb0b0, #ff8484);
+      border: none;
+    }
+
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .stat {
+      background: rgba(23,26,33,.82);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    .stat small {
+      display: block;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .stat b {
+      font-size: 1.28rem;
+    }
+
+    .status {
+      color: var(--muted);
+      margin: 12px 4px 0;
+      min-height: 22px;
+    }
+
+    .status.error { color: var(--danger); }
+    .status.good { color: var(--good); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .card {
+      background: rgba(23,26,33,.92);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      min-width: 0;
+      box-shadow: 0 14px 40px rgba(0,0,0,.16);
+    }
+
+    .thumb {
+      height: 150px;
+      display: grid;
+      place-items: center;
+      background:
+        linear-gradient(45deg, rgba(255,255,255,.035) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(255,255,255,.035) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255,255,255,.035) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(255,255,255,.035) 75%);
+      background-size: 22px 22px;
+      background-position: 0 0, 0 11px, 11px -11px, -11px 0px;
+      border-bottom: 1px solid var(--line);
+      overflow: hidden;
+    }
+
+    .thumb img,
+    .thumb video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .icon {
+      width: 70px;
+      height: 70px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      background: rgba(138,180,255,.12);
+      border: 1px solid rgba(138,180,255,.28);
+      color: var(--accent-2);
+      font-weight: 800;
+      letter-spacing: .02em;
+    }
+
+    .meta {
+      padding: 12px;
+    }
+
+    .name {
+      font-weight: 720;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-bottom: 8px;
+    }
+
+    .details {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: .86rem;
+      margin-bottom: 12px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .actions button {
+      flex: 1;
+      height: 36px;
+      font-size: .9rem;
+    }
+
+    .tableWrap {
+      margin-top: 16px;
+      background: rgba(23,26,33,.88);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: .92rem;
+      vertical-align: middle;
+    }
+
+    th {
+      color: var(--muted);
+      background: rgba(255,255,255,.025);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .fileName {
+      max-width: 420px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .miniThumb {
+      width: 48px;
+      height: 36px;
+      border-radius: 8px;
+      background: #11151f;
+      object-fit: contain;
+      border: 1px solid var(--line);
+    }
+
+    .viewSwitch {
+      display: flex;
+      gap: 6px;
+    }
+
+    .viewSwitch button {
+      height: 42px;
+      width: 48px;
+      padding: 0;
+    }
+
+    .viewSwitch button.active {
+      border-color: var(--accent);
+      color: var(--accent-2);
+    }
+
+    .empty {
+      margin: 22px 0 0;
+      color: var(--muted);
+      background: rgba(23,26,33,.78);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 22px;
+    }
+
+    .fineprint {
+      color: var(--muted);
+      font-size: .82rem;
+      line-height: 1.45;
+      margin-top: 18px;
+    }
+
+    @media (max-width: 760px) {
+      header { display: block; }
+      .badge { display: inline-block; margin-top: 14px; }
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .toolbar .search { grid-column: 1 / -1; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .tableWrap { overflow-x: auto; }
+      th, td { white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div>
+        <h1>PPTX Media Extractor</h1>
+        <p class="sub">
+          Drop in a PowerPoint file and this page reads it as a ZIP in your browser, extracts files from
+          <code>ppt/media/</code>, then lets you preview, sort, filter, and download the original media assets.
+        </p>
+      </div>
+      <div class="badge">Runs locally in your browser</div>
+    </header>
+
+    <label id="dropZone" class="drop" for="fileInput">
+      <div>
+        <strong>Drag a .pptx here</strong>
+        <span>or click to choose a file. Nothing is uploaded anywhere; extraction happens client-side.</span>
+        <div id="status" class="status"></div>
+      </div>
+    </label>
+    <input id="fileInput" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" />
+
+    <section id="stats" class="stats hidden">
+      <div class="stat"><small>Media files</small><b id="statCount">0</b></div>
+      <div class="stat"><small>Total size</small><b id="statTotal">0 KB</b></div>
+      <div class="stat"><small>Largest file</small><b id="statLargest">—</b></div>
+      <div class="stat"><small>File types</small><b id="statTypes">—</b></div>
+    </section>
+
+    <section id="toolbar" class="toolbar hidden">
+      <input id="searchInput" class="search" type="search" placeholder="Filter by filename or type..." />
+      <select id="typeFilter" aria-label="Filter by type">
+        <option value="all">All types</option>
+      </select>
+      <select id="sortSelect" aria-label="Sort media">
+        <option value="size-desc">Size: largest first</option>
+        <option value="size-asc">Size: smallest first</option>
+        <option value="name-asc">Name: A-Z</option>
+        <option value="name-desc">Name: Z-A</option>
+        <option value="type-asc">Type: A-Z</option>
+      </select>
+      <div class="viewSwitch" aria-label="View switcher">
+        <button id="gridBtn" class="active" type="button" title="Grid view">▦</button>
+        <button id="listBtn" type="button" title="List view">☰</button>
+      </div>
+      <button id="downloadAllBtn" class="primary" type="button">Download all</button>
+      <button id="resetBtn" class="danger" type="button">Clear</button>
+    </section>
+
+    <section id="results"></section>
+
+    <p class="fineprint">
+      Notes: this extracts the original embedded media files from the PPTX package. It does not export slides as images.
+      Image thumbnails are shown for browser-supported formats. Video thumbnails/previews depend on browser codec support.
+    </p>
+  </main>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const statusEl = document.getElementById('status');
+    const toolbar = document.getElementById('toolbar');
+    const results = document.getElementById('results');
+    const searchInput = document.getElementById('searchInput');
+    const sortSelect = document.getElementById('sortSelect');
+    const typeFilter = document.getElementById('typeFilter');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const gridBtn = document.getElementById('gridBtn');
+    const listBtn = document.getElementById('listBtn');
+    const stats = document.getElementById('stats');
+    const statCount = document.getElementById('statCount');
+    const statTotal = document.getElementById('statTotal');
+    const statLargest = document.getElementById('statLargest');
+    const statTypes = document.getElementById('statTypes');
+
+    let mediaItems = [];
+    let currentView = 'grid';
+
+    const mimeByExt = {
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      gif: 'image/gif',
+      webp: 'image/webp',
+      svg: 'image/svg+xml',
+      bmp: 'image/bmp',
+      tif: 'image/tiff',
+      tiff: 'image/tiff',
+      mp4: 'video/mp4',
+      m4v: 'video/mp4',
+      mov: 'video/quicktime',
+      webm: 'video/webm',
+      avi: 'video/x-msvideo',
+      wmv: 'video/x-ms-wmv',
+      mp3: 'audio/mpeg',
+      m4a: 'audio/mp4',
+      wav: 'audio/wav',
+      aac: 'audio/aac',
+      ogg: 'audio/ogg',
+      emf: 'image/x-emf',
+      wmf: 'image/x-wmf'
+    };
+
+    function setStatus(message, type = '') {
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes && bytes !== 0) return '—';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let size = bytes;
+      let unit = 0;
+      while (size >= 1024 && unit < units.length - 1) {
+        size /= 1024;
+        unit++;
+      }
+      return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+    }
+
+    function getExt(name) {
+      const clean = name.split('?')[0].split('#')[0];
+      const parts = clean.split('.');
+      return parts.length > 1 ? parts.pop().toLowerCase() : '';
+    }
+
+    function baseName(path) {
+      return path.split('/').pop();
+    }
+
+    function typeGroup(ext, mime) {
+      if (mime.startsWith('image/')) return 'image';
+      if (mime.startsWith('video/')) return 'video';
+      if (mime.startsWith('audio/')) return 'audio';
+      return ext || 'other';
+    }
+
+    function isPreviewableImage(mime, ext) {
+      return mime.startsWith('image/') && !['emf', 'wmf', 'tif', 'tiff'].includes(ext);
+    }
+
+    function isPreviewableVideo(mime) {
+      return mime.startsWith('video/');
+    }
+
+    async function handleFile(file) {
+      if (!file) return;
+
+      if (!file.name.toLowerCase().endsWith('.pptx')) {
+        setStatus('Please choose a .pptx file.', 'error');
+        return;
+      }
+
+      if (!window.JSZip) {
+        setStatus('JSZip did not load. Check your internet connection or host the library locally.', 'error');
+        return;
+      }
+
+      clearResults(false);
+      setStatus(`Reading ${file.name}...`);
+
+      try {
+        const zip = await JSZip.loadAsync(file);
+        const mediaEntries = Object.values(zip.files)
+          .filter(entry => !entry.dir && entry.name.startsWith('ppt/media/'));
+
+        if (!mediaEntries.length) {
+          setStatus('No files found in ppt/media/.', 'error');
+          return;
+        }
+
+        setStatus(`Extracting ${mediaEntries.length} media file${mediaEntries.length === 1 ? '' : 's'}...`);
+
+        mediaItems = await Promise.all(mediaEntries.map(async (entry) => {
+          const blob = await entry.async('blob');
+          const ext = getExt(entry.name);
+          const mime = mimeByExt[ext] || blob.type || 'application/octet-stream';
+          const typedBlob = blob.type === mime ? blob : blob.slice(0, blob.size, mime);
+          const url = URL.createObjectURL(typedBlob);
+
+          return {
+            path: entry.name,
+            name: baseName(entry.name),
+            ext,
+            mime,
+            group: typeGroup(ext, mime),
+            size: typedBlob.size,
+            blob: typedBlob,
+            url
+          };
+        }));
+
+        buildTypeFilter();
+        updateStats();
+        toolbar.classList.remove('hidden');
+        stats.classList.remove('hidden');
+        setStatus(`Loaded ${mediaItems.length} media file${mediaItems.length === 1 ? '' : 's'} from ${file.name}.`, 'good');
+        render();
+      } catch (err) {
+        console.error(err);
+        setStatus('Could not read this PPTX. It may be corrupted, password-protected, or not a real PPTX file.', 'error');
+      }
+    }
+
+    function buildTypeFilter() {
+      const groups = [...new Set(mediaItems.map(item => item.group))].sort();
+      typeFilter.innerHTML = '<option value="all">All types</option>' + groups
+        .map(group => `<option value="${escapeHtml(group)}">${escapeHtml(group)}</option>`)
+        .join('');
+    }
+
+    function updateStats() {
+      const total = mediaItems.reduce((sum, item) => sum + item.size, 0);
+      const largest = [...mediaItems].sort((a, b) => b.size - a.size)[0];
+      const types = new Set(mediaItems.map(item => item.ext || item.group));
+
+      statCount.textContent = mediaItems.length.toLocaleString();
+      statTotal.textContent = formatBytes(total);
+      statLargest.textContent = largest ? formatBytes(largest.size) : '—';
+      statTypes.textContent = types.size.toLocaleString();
+    }
+
+    function getFilteredSortedItems() {
+      const query = searchInput.value.trim().toLowerCase();
+      const selectedType = typeFilter.value;
+
+      let items = mediaItems.filter(item => {
+        const matchesText = !query ||
+          item.name.toLowerCase().includes(query) ||
+          item.ext.toLowerCase().includes(query) ||
+          item.group.toLowerCase().includes(query) ||
+          item.path.toLowerCase().includes(query);
+
+        const matchesType = selectedType === 'all' || item.group === selectedType;
+        return matchesText && matchesType;
+      });
+
+      const sortValue = sortSelect.value;
+      items.sort((a, b) => {
+        switch (sortValue) {
+          case 'size-asc': return a.size - b.size;
+          case 'size-desc': return b.size - a.size;
+          case 'name-desc': return b.name.localeCompare(a.name, undefined, { numeric: true });
+          case 'type-asc': return (a.ext || a.group).localeCompare(b.ext || b.group) || a.name.localeCompare(b.name, undefined, { numeric: true });
+          case 'name-asc':
+          default: return a.name.localeCompare(b.name, undefined, { numeric: true });
+        }
+      });
+
+      return items;
+    }
+
+    function render() {
+      const items = getFilteredSortedItems();
+
+      if (!items.length) {
+        results.innerHTML = '<div class="empty">No matching media files.</div>';
+        return;
+      }
+
+      results.innerHTML = currentView === 'grid'
+        ? renderGrid(items)
+        : renderTable(items);
+
+      for (const button of results.querySelectorAll('[data-download]')) {
+        button.addEventListener('click', () => {
+          const item = mediaItems.find(x => x.path === button.dataset.download);
+          if (item) downloadBlob(item.blob, item.name);
+        });
+      }
+
+      for (const button of results.querySelectorAll('[data-open]')) {
+        button.addEventListener('click', () => {
+          const item = mediaItems.find(x => x.path === button.dataset.open);
+          if (item) window.open(item.url, '_blank', 'noopener,noreferrer');
+        });
+      }
+    }
+
+    function renderGrid(items) {
+      return `<div class="grid">
+        ${items.map(item => `
+          <article class="card">
+            <div class="thumb">${renderThumb(item)}</div>
+            <div class="meta">
+              <div class="name" title="${escapeHtml(item.path)}">${escapeHtml(item.name)}</div>
+              <div class="details">
+                <span>${escapeHtml((item.ext || item.group).toUpperCase())}</span>
+                <span>${formatBytes(item.size)}</span>
+              </div>
+              <div class="actions">
+                <button type="button" data-open="${escapeHtml(item.path)}">Open</button>
+                <button type="button" data-download="${escapeHtml(item.path)}">Download</button>
+              </div>
+            </div>
+          </article>
+        `).join('')}
+      </div>`;
+    }
+
+    function renderTable(items) {
+      return `<div class="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Preview</th>
+              <th>Filename</th>
+              <th>Type</th>
+              <th>Size</th>
+              <th>Path</th>
+              <th>Download</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(item => `
+              <tr>
+                <td>${renderMiniThumb(item)}</td>
+                <td><div class="fileName" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div></td>
+                <td>${escapeHtml((item.ext || item.group).toUpperCase())}</td>
+                <td>${formatBytes(item.size)}</td>
+                <td><div class="fileName" title="${escapeHtml(item.path)}">${escapeHtml(item.path)}</div></td>
+                <td><button type="button" data-download="${escapeHtml(item.path)}">Download</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    }
+
+    function renderThumb(item) {
+      if (isPreviewableImage(item.mime, item.ext)) {
+        return `<img src="${item.url}" alt="${escapeHtml(item.name)}" loading="lazy" />`;
+      }
+
+      if (isPreviewableVideo(item.mime)) {
+        return `<video src="${item.url}" muted controls preload="metadata"></video>`;
+      }
+
+      if (item.mime.startsWith('audio/')) {
+        return `<audio src="${item.url}" controls preload="metadata" style="width:90%"></audio>`;
+      }
+
+      return `<div class="icon">${escapeHtml((item.ext || 'file').slice(0, 4).toUpperCase())}</div>`;
+    }
+
+    function renderMiniThumb(item) {
+      if (isPreviewableImage(item.mime, item.ext)) {
+        return `<img class="miniThumb" src="${item.url}" alt="" loading="lazy" />`;
+      }
+      return `<div class="miniThumb" style="display:grid;place-items:center;color:var(--muted);font-size:.7rem">${escapeHtml((item.ext || 'file').slice(0, 4).toUpperCase())}</div>`;
+    }
+
+    async function downloadAll() {
+      const items = getFilteredSortedItems();
+
+      if (!items.length) return;
+
+      downloadAllBtn.disabled = true;
+      downloadAllBtn.textContent = 'Zipping...';
+
+      try {
+        const outZip = new JSZip();
+        const usedNames = new Map();
+
+        for (const item of items) {
+          const safe = uniqueName(item.name, usedNames);
+          outZip.file(safe, item.blob);
+        }
+
+        const blob = await outZip.generateAsync({ type: 'blob' });
+        downloadBlob(blob, 'pptx-media-extracted.zip');
+      } catch (err) {
+        console.error(err);
+        setStatus('Could not create the download ZIP.', 'error');
+      } finally {
+        downloadAllBtn.disabled = false;
+        downloadAllBtn.textContent = 'Download all';
+      }
+    }
+
+    function uniqueName(name, usedNames) {
+      if (!usedNames.has(name)) {
+        usedNames.set(name, 1);
+        return name;
+      }
+
+      const count = usedNames.get(name);
+      usedNames.set(name, count + 1);
+
+      const dot = name.lastIndexOf('.');
+      if (dot === -1) return `${name}-${count + 1}`;
+
+      return `${name.slice(0, dot)}-${count + 1}${name.slice(dot)}`;
+    }
+
+    function downloadBlob(blob, filename) {
+      const a = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function clearResults(revoke = true) {
+      if (revoke) {
+        for (const item of mediaItems) URL.revokeObjectURL(item.url);
+      }
+
+      mediaItems = [];
+      results.innerHTML = '';
+      toolbar.classList.add('hidden');
+      stats.classList.add('hidden');
+      searchInput.value = '';
+      sortSelect.value = 'size-desc';
+      typeFilter.innerHTML = '<option value="all">All types</option>';
+      setStatus('');
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    dropZone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      dropZone.classList.add('drag');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag');
+    });
+
+    dropZone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      dropZone.classList.remove('drag');
+      handleFile(event.dataTransfer.files[0]);
+    });
+
+    fileInput.addEventListener('change', () => {
+      handleFile(fileInput.files[0]);
+      fileInput.value = '';
+    });
+
+    searchInput.addEventListener('input', render);
+    sortSelect.addEventListener('change', render);
+    typeFilter.addEventListener('change', render);
+    downloadAllBtn.addEventListener('click', downloadAll);
+    resetBtn.addEventListener('click', () => clearResults(true));
+
+    gridBtn.addEventListener('click', () => {
+      currentView = 'grid';
+      gridBtn.classList.add('active');
+      listBtn.classList.remove('active');
+      render();
+    });
+
+    listBtn.addEventListener('click', () => {
+      currentView = 'list';
+      listBtn.classList.add('active');
+      gridBtn.classList.remove('active');
+      render();
+    });
+  </script>
+</body>
+</html>
