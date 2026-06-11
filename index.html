@@ -658,7 +658,6 @@
           if (item) window.open(item.url, '_blank', 'noopener,noreferrer');
         });
       }
-
     }
 
     function renderGrid(items) {
@@ -717,7 +716,7 @@
       }
 
       if (isPreviewableVideo(item.mime)) {
-        return `<video src="${item.url}" muted controls playsinline preload="metadata"></video>`;
+        return `<video src="${item.url}" muted controls preload="metadata"></video>`;
       }
 
       if (item.mime.startsWith('audio/')) {
@@ -731,11 +730,6 @@
       if (isPreviewableImage(item.mime, item.ext)) {
         return `<img class="miniThumb" src="${item.url}" alt="" loading="lazy" />`;
       }
-
-      if (isPreviewableVideo(item.mime)) {
-        return `<div class="miniThumb" style="display:grid;place-items:center;color:var(--muted);font-size:.7rem">VIDEO</div>`;
-      }
-
       return `<div class="miniThumb" style="display:grid;place-items:center;color:var(--muted);font-size:.7rem">${escapeHtml((item.ext || 'file').slice(0, 4).toUpperCase())}</div>`;
     }
 
